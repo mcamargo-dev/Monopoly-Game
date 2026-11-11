@@ -1,0 +1,6 @@
+{
+  "name": "Business Tour - Multiplayer Monopoly",
+  "description": "Jogo multiplayer estilo Business Tour / Monopoly em rede local com dados, compra de propriedades, aluguéis, prisão e falência.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

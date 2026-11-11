@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Business Tour - Multiplayer Monopoly</title>
+  <meta name="description" content="Jogo multiplayer estilo Business Tour / Monopoly em rede local com dados, compra de propriedades, aluguéis, prisão e falência." />
+  <meta property="og:title" content="Business Tour - Multiplayer Monopoly" />
+  <meta property="og:description" content="Jogo multiplayer estilo Business Tour / Monopoly em rede local com dados, compra de propriedades, aluguéis, prisão e falência." />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css" />
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+  <!-- Header / Top Navigation -->
+  <header class="app-header">
+    <div class="header-brand">
+      <span class="brand-icon">🎲</span>
+      <div class="brand-text">
+        <h1 class="brand-title">BUSINESS TOUR</h1>
+        <span class="brand-subtitle">Monopoly Multiplayer Edition</span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button id="btn-sound-toggle" class="header-btn" title="Alternar Som" aria-label="Alternar Som">
+        <span id="sound-icon">🔊</span>
+      </button>
+      <button id="btn-restart" class="header-btn header-btn-secondary" title="Reiniciar Partida" aria-label="Reiniciar Partida">
+        🔄 Reiniciar
+      </button>
+    </div>
+  </header>
+
+  <!-- SCREEN 1: LOBBY -->
+  <main id="lobby-screen" class="view-screen active-screen">
+    <div class="lobby-card">
+      <div class="lobby-badge">Lobby Multiplayer Local</div>
+      <h2 class="lobby-title">Entre na Mesa de Negócios</h2>
+      <p class="lobby-desc">Compre cidades pelo mundo, construa seu império, cobre aluguéis e leve seus oponentes à falência!</p>
+
+      <div class="lobby-form">
+        <div class="form-group">
+          <label for="player-name-input">Seu Nome de Magnata</label>
+          <input type="text" id="player-name-input" placeholder="Ex: Leonardo, Sofia..." maxlength="16" autofocus />
+        </div>
+
+        <div class="form-group">
+          <label>Escolha a Cor do seu Peão</label>
+          <div class="color-picker-grid" id="color-picker-grid" role="radiogroup" aria-label="Cor do Peão">
+            <button type="button" class="color-dot active" data-color="#3B82F6" style="--c: #3B82F6;" aria-label="Azul"></button>
+            <button type="button" class="color-dot" data-color="#EF4444" style="--c: #EF4444;" aria-label="Vermelho"></button>
+            <button type="button" class="color-dot" data-color="#10B981" style="--c: #10B981;" aria-label="Esmeralda"></button>
+            <button type="button" class="color-dot" data-color="#F59E0B" style="--c: #F59E0B;" aria-label="Âmbar"></button>
+            <button type="button" class="color-dot" data-color="#8B5CF6" style="--c: #8B5CF6;" aria-label="Roxo"></button>
+            <button type="button" class="color-dot" data-color="#EC4899" style="--c: #EC4899;" aria-label="Rosa"></button>
+            <button type="button" class="color-dot" data-color="#06B6D4" style="--c: #06B6D4;" aria-label="Ciano"></button>
+          </div>
+        </div>
+
+        <div class="lobby-actions">
+          <button id="btn-join" class="btn-primary">
+            🚀 Entrar na Sala
+          </button>
+          <button id="btn-add-bot" class="btn-secondary" title="Adiciona um jogador controlado pelo computador">
+            🤖 Adicionar Bot
+          </button>
+        </div>
+      </div>
+
+      <!-- Connected Players List in Lobby -->
+      <div class="lobby-players-box">
+        <div class="lobby-players-header">
+          <span class="label">Jogadores Conectados (<span id="lobby-player-count">0</span>)</span>
+          <span class="lobby-status-tag" id="lobby-ready-status">Aguardando participantes</span>
+        </div>
+        <div id="lobby-players-list" class="lobby-players-list">
+          <div class="lobby-empty-hint">Nenhum jogador na sala ainda. Digite seu nome e clique em Entrar!</div>
+        </div>
+        <button id="btn-start-game" class="btn-success btn-large" disabled>
+          ▶ Iniciar Partida Agora
+        </button>
+      </div>
+
+      <div class="lobby-rules-summary">
+        <div class="rule-item">🏁 <strong>Início:</strong> +$200 a cada volta completada</div>
+        <div class="rule-item">🎲 <strong>Dados Iguais:</strong> Jogue novamente no mesmo turno!</div>
+        <div class="rule-item">👮‍♂️ <strong>Vá para a Prisão:</strong> Vá direto para a cela e perca a vez</div>
+        <div class="rule-item">💥 <strong>Falência:</strong> Saldo zerado libera todas as propriedades</div>
+      </div>
+    </div>
+  </main>
+
+  <!-- SCREEN 2: GAME BOARD & PANEL -->
+  <main id="game-screen" class="view-screen hidden">
+    <div class="game-container">
+      
+      <!-- Central Board Area -->
+      <section class="board-wrapper" aria-label="Tabuleiro de Jogo">
+        <div id="board" class="board-grid">
+          <!-- Central Courtyard (Center space of 9x9 grid) -->
+          <div class="board-center">
+            <div class="center-content">
+              <div class="turn-announcement" id="turn-announcement">
+                <span class="turn-badge" id="turn-badge">TURNO ATUAL</span>
+                <h3 class="turn-player-name" id="turn-player-name">Aguardando início...</h3>
+                <p class="turn-subtext" id="turn-subtext">Role os dados para se mover</p>
+              </div>
+
+              <!-- 3D Dice Display -->
+              <div class="dice-arena">
+                <div class="dice-box" id="dice-1" aria-label="Dado 1">
+                  <div class="dice-face" id="dice-1-val">🎲</div>
+                </div>
+                <div class="dice-box" id="dice-2" aria-label="Dado 2">
+                  <div class="dice-face" id="dice-2-val">🎲</div>
+                </div>
+              </div>
+              <div class="dice-sum-display" id="dice-sum-display">
+                Total: <span id="dice-total">-</span>
+              </div>
+
+              <!-- Action Controls -->
+              <div class="center-action-area">
+                <button id="btn-roll-dice" class="btn-roll-dice" disabled>
+                  <span class="btn-roll-icon">🎲</span>
+                  <span class="btn-roll-text">Rolar Dados</span>
+                </button>
+              </div>
+
+              <div class="turn-tips" id="center-status-tip">
+                Aguardando sua vez...
+              </div>
+            </div>
+          </div>
+          <!-- 32 Tiles will be injected here dynamically by client.js -->
+        </div>
+      </section>
+
+      <!-- Sidebar / Mobile Bottom Panel -->
+      <aside class="game-sidebar" aria-label="Painel de Jogadores e Chat">
+        
+        <!-- Players List & Status -->
+        <div class="sidebar-card players-card">
+          <div class="card-header">
+            <h3>👥 Jogadores & Saldos</h3>
+            <span class="card-tag" id="sidebar-turn-tag">Turno 1</span>
+          </div>
+          <div id="players-list" class="players-list">
+            <!-- Dynamic Player Cards -->
+          </div>
+        </div>
+
+        <!-- Chat & History Logs -->
+        <div class="sidebar-card chat-card">
+          <div class="card-header">
+            <h3>📜 Histórico do Jogo</h3>
+            <span class="feed-indicator">● Ao vivo</span>
+          </div>
+          <div id="chat-messages" class="chat-messages" tabindex="0" aria-label="Histórico de Ações">
+            <!-- Dynamic logs -->
+          </div>
+          <form id="chat-form" class="chat-form">
+            <input type="text" id="chat-input" placeholder="Envie uma mensagem..." maxlength="120" autocomplete="off" />
+            <button type="submit" id="btn-send-chat" class="btn-chat-send" aria-label="Enviar Mensagem">➤</button>
+          </form>
+        </div>
+
+      </aside>
+
+    </div>
+  </main>
+
+  <!-- MODAL: BUY / UPGRADE PROPERTY (BUSINESS TOUR SYSTEM) -->
+  <div id="buy-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-property-title">
+    <div class="modal-card tour-modal-card">
+      <div class="modal-header-banner" id="modal-color-banner">
+        <span class="modal-tile-icon" id="modal-tile-icon">🏛️</span>
+        <h3 id="modal-property-title" class="modal-property-title">Nome da Propriedade</h3>
+        <span class="modal-tile-type" id="modal-tile-type">Terreno Disponível</span>
+      </div>
+      <div class="modal-body tour-modal-body">
+        <p class="modal-question" id="modal-action-subtitle">Selecione o nível de construção desejado:</p>
+        
+        <!-- Side-by-side Level Cards Container -->
+        <div class="level-cards-container" id="level-cards-container" role="radiogroup" aria-label="Nível de Construção">
+          <!-- Dynamic cards injected by client.js: Land, House 1, House 2, House 3, Hotel -->
+        </div>
+
+        <!-- Rent rate indicator and Balance status -->
+        <div class="tour-modal-info-strip">
+          <div class="tour-info-pill rent-pill">
+            <span class="pill-icon">💰</span>
+            <span class="pill-text" id="modal-rent-rate">Rent rate: $0</span>
+          </div>
+          <div class="tour-info-pill balance-pill">
+            <span class="pill-icon">🏦</span>
+            <span class="pill-text">Saldo: <strong id="modal-current-balance">$0</strong> <span class="arrow-sep">➔</span> Restará: <strong id="modal-after-balance">$0</strong></span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer tour-modal-footer">
+        <button id="btn-pass-property" class="btn-modal btn-pass">
+          Passar a Vez
+        </button>
+        <button id="btn-buy-property" class="btn-modal btn-buy-tour" disabled>
+          <span id="buy-button-text">BUY FOR $0</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: WINNER / GAME OVER -->
+  <div id="winner-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="winner-title">
+    <div class="modal-card winner-card">
+      <div class="winner-trophy">🏆</div>
+      <h2 id="winner-title" class="winner-title">Grande Campeão!</h2>
+      <p class="winner-message" id="winner-message">Jogador conquistou o monopólio e venceu a partida!</p>
+      <div class="winner-actions">
+        <button id="btn-play-again" class="btn-primary btn-large">
+          🔄 Jogar Novamente
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CHANCE CARD / SORTE OU REVÉS -->
+  <div id="chance-card-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="chance-card-title">
+    <div class="modal-card chance-card-modal-content">
+      <div class="chance-card-top">
+        <span class="chance-badge">🎴 SORTE OU REVÉS</span>
+        <button id="btn-close-chance-card" class="chance-close-btn" aria-label="Fechar Carta">✕</button>
+      </div>
+      <div class="chance-card-icon" id="chance-card-icon">🎰</div>
+      <h3 id="chance-card-title" class="chance-card-title">Título da Carta</h3>
+      <div class="chance-card-player">
+        Sacada por <span id="chance-player-badge" class="chance-player-badge">Jogador</span>
+      </div>
+      <p class="chance-card-text" id="chance-card-text">Descrição da carta tirada.</p>
+      <div class="chance-card-effect-tag" id="chance-card-effect-tag">Efeito</div>
+      <div class="chance-timer-container">
+        <div class="chance-timer-bar" id="chance-timer-bar"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/client.js"></script>
+</body>
+</html>
